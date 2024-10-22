@@ -19,7 +19,7 @@ metadata:
   labels:
       tags.datadoghq.com/env: "dev-auto-inject"
       tags.datadoghq.com/service: "checkoutservice"
-      tags.datadoghq.com/version: "0.5.0"
+      tags.datadoghq.com/version: "0.5.1"
 spec:
   selector:
     matchLabels:
