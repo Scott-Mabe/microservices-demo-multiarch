@@ -15,7 +15,7 @@
 const cardValidator = require('simple-card-validator');
 const { v4: uuidv4 } = require('uuid');
 const pino = require('pino');
-const tracer = require('dd-trace').init();
+
 
 const logger = pino({
   name: 'paymentservice-charge',
