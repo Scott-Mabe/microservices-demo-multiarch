@@ -85,7 +85,6 @@ module.exports = function charge (request) {
 
   return { transaction_id: uuidv4() };
 };
-const tracer = require('dd-trace').init(); // Initialize the Datadog tracer
 
 // Example charge function
 function chargeCard(amount, cardType) {
