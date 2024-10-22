@@ -31,7 +31,7 @@ WORKDIR /usr/src/app
 
 COPY package*.json ./
 
-RUN npm install dd-trace --save
+RUN npm install dd-trace@latest --save
 
 RUN npm install --only=production
 
