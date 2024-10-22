@@ -84,3 +84,40 @@ module.exports = function charge (request) {
 
   return { transaction_id: uuidv4() };
 };
+async function chargeCard(amount, cardType) {
+    // Payment processing logic here
+    console.log(`Charging ${amount} with card type ${cardType}`);
+
+    const result = await processPayment(amount, cardType);
+    return result;
+}
+const tracer = require('dd-trace').init(); // Initialize Datadog tracer
+
+async function chargeCard(amount, cardType) {
+    // Start a span for the charge operation
+    const span = tracer.startSpan('payment.charge');
+
+    // Add span tags for the amount and card type
+    span.setTag('amount.currency_code', amount.currency_code);  // Tag for currency code
+    span.setTag('amount.units', amount.units);                  // Tag for amount
+    span.setTag('payment.card_type', cardType);                 // Tag for card type
+
+    try {
+        // Payment processing logic
+        console.log(`Charging ${amount.units} ${amount.currency_code} with card type ${cardType}`);
+        const result = await processPayment(amount, cardType);
+
+        // Mark the span as successful
+        span.setTag('payment.status', 'success');
+        return result;
+    } catch (err) {
+        // Handle errors and tag them
+        console.error('Payment error:', err.message);
+        span.setTag('payment.status', 'failure');
+        span.setTag('error.message', err.message);
+        throw err;
+    } finally {
+        // Finish the span
+        span.finish();
+    }
+}
