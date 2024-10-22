@@ -15,6 +15,7 @@
 const cardValidator = require('simple-card-validator');
 const { v4: uuidv4 } = require('uuid');
 const pino = require('pino');
+const tracer = require('dd-trace').init();
 
 const logger = pino({
   name: 'paymentservice-charge',
@@ -84,3 +85,34 @@ module.exports = function charge (request) {
 
   return { transaction_id: uuidv4() };
 };
+const tracer = require('dd-trace').init(); // Initialize the Datadog tracer
+
+// Example charge function
+function chargeCard(amount, cardType) {
+    // Start a Datadog span for the charge operation
+    const span = tracer.startSpan('payment.charge');
+
+    // Set span tags for the amount and card type
+    span.setTag('payment.amount', amount);
+    span.setTag('payment.card_type', cardType);
+
+    // Simulate a charge operation (your actual logic would go here)
+    try {
+        console.log(`Charging card of type ${cardType} for amount ${amount}`);
+        // Simulate charge success
+        // Add additional span tags for success, if needed
+        span.setTag('payment.status', 'success');
+    } catch (err) {
+        // If there’s an error, add error information to the span
+        span.setTag('payment.status', 'error');
+        span.setTag('error.message', err.message);
+        span.setTag('error.stack', err.stack);
+        throw err;
+    } finally {
+        // Always finish the span after the operation is complete
+        span.finish();
+    }
+}
+
+module.exports = chargeCard;
+
