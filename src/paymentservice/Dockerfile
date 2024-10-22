@@ -31,6 +31,8 @@ WORKDIR /usr/src/app
 
 COPY package*.json ./
 
+RUN npm install dd-trace --save
+
 RUN npm install --only=production
 
 FROM base as without-grpc-health-probe-bin
