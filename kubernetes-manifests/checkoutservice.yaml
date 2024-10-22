@@ -30,7 +30,7 @@ spec:
         app: checkoutservice
         tags.datadoghq.com/env: "dev-auto-inject"
         tags.datadoghq.com/service: "checkoutservice"
-        tags.datadoghq.com/version: "0.5.0"
+        tags.datadoghq.com/version: "0.5.1"
         admission.datadoghq.com/enabled: "true"
     spec:
       serviceAccountName: default
