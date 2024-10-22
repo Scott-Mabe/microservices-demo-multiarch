@@ -86,29 +86,33 @@ module.exports = function charge (request) {
   return { transaction_id: uuidv4() };
 };
 
-// Example charge function
-function chargeCard(amount, cardType) {
-    // Start a Datadog span for the charge operation
+const tracer = require('dd-trace').init(); // Make sure tracing is initialized
+
+async function chargeCard(amount, cardType) {
     const span = tracer.startSpan('payment.charge');
 
-    // Set span tags for the amount and card type
+    // Tag with amount and card type, but do not log sensitive information
     span.setTag('payment.amount', amount);
     span.setTag('payment.card_type', cardType);
 
-    // Simulate a charge operation (your actual logic would go here)
     try {
-        console.log(`Charging card of type ${cardType} for amount ${amount}`);
-        // Simulate charge success
-        // Add additional span tags for success, if needed
+        const paymentResult = await paymentGateway.charge({ amount, cardType });
+        console.log('Payment successful:', paymentResult);
+
+        // Set success status
         span.setTag('payment.status', 'success');
+        return paymentResult;
     } catch (err) {
-        // If there’s an error, add error information to the span
+        // Log the error and tag it in the span
+        console.error('Payment failed:', err.message);
         span.setTag('payment.status', 'error');
         span.setTag('error.message', err.message);
         span.setTag('error.stack', err.stack);
+
+        // Re-throw the error to handle it in higher-level logic
         throw err;
     } finally {
-        // Always finish the span after the operation is complete
+        // Ensure the span is closed after the operation completes
         span.finish();
     }
 }
