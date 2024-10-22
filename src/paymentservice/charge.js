@@ -15,7 +15,7 @@
 const cardValidator = require('simple-card-validator');
 const { v4: uuidv4 } = require('uuid');
 const pino = require('pino');
-
+const tracer = require('dd-trace').init();
 const logger = pino({
   name: 'paymentservice-charge',
   messageKey: 'message',
@@ -91,7 +91,7 @@ async function chargeCard(amount, cardType) {
     const result = await processPayment(amount, cardType);
     return result;
 }
-const tracer = require('dd-trace').init(); // Initialize Datadog tracer
+//const tracer = require('dd-trace').init(); 
 
 async function chargeCard(amount, cardType) {
     // Start a span for the charge operation
