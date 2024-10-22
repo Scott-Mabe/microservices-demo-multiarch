@@ -12,121 +12,75 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package money
+const cardValidator = require('simple-card-validator');
+const { v4: uuidv4 } = require('uuid');
+const pino = require('pino');
 
-import (
-	"errors"
+const logger = pino({
+  name: 'paymentservice-charge',
+  messageKey: 'message',
+  formatters: {
+    level (logLevelString, logLevelNum) {
+      return { severity: logLevelString }
+    }
+  }
+});
 
-	pb "github.com/GoogleCloudPlatform/microservices-demo/src/checkoutservice/genproto"
-)
 
-const (
-	nanosMin = -999999999
-	nanosMax = +999999999
-	nanosMod = 1000000000
-)
-
-var (
-	ErrInvalidValue        = errors.New("one of the specified money values is invalid")
-	ErrMismatchingCurrency = errors.New("mismatching currency codes")
-)
-
-// IsValid checks if specified value has a valid units/nanos signs and ranges.
-func IsValid(m pb.Money) bool {
-	return signMatches(m) && validNanos(m.GetNanos())
+class CreditCardError extends Error {
+  constructor (message) {
+    super(message);
+    this.code = 400; // Invalid argument error
+  }
 }
 
-func signMatches(m pb.Money) bool {
-	return m.GetNanos() == 0 || m.GetUnits() == 0 || (m.GetNanos() < 0) == (m.GetUnits() < 0)
+class InvalidCreditCard extends CreditCardError {
+  constructor (cardType) {
+    super(`Credit card info is invalid`);
+  }
 }
 
-func validNanos(nanos int32) bool { return nanosMin <= nanos && nanos <= nanosMax }
-
-// IsZero returns true if the specified money value is equal to zero.
-func IsZero(m pb.Money) bool { return m.GetUnits() == 0 && m.GetNanos() == 0 }
-
-// IsPositive returns true if the specified money value is valid and is
-// positive.
-func IsPositive(m pb.Money) bool {
-	return IsValid(m) && m.GetUnits() > 0 || (m.GetUnits() == 0 && m.GetNanos() > 0)
+class UnacceptedCreditCard extends CreditCardError {
+  constructor (cardType) {
+    super(`Sorry, we cannot process ${cardType} credit cards. Only VISA or MasterCard is accepted.`);
+  }
 }
 
-// IsNegative returns true if the specified money value is valid and is
-// negative.
-func IsNegative(m pb.Money) bool {
-	return IsValid(m) && m.GetUnits() < 0 || (m.GetUnits() == 0 && m.GetNanos() < 0)
+class ExpiredCreditCard extends CreditCardError {
+  constructor (number, month, year) {
+    super(`Your credit card (ending ${number.substr(-4)}) expired on ${month}/${year}`);
+  }
 }
 
-// AreSameCurrency returns true if values l and r have a currency code and
-// they are the same values.
-func AreSameCurrency(l, r pb.Money) bool {
-	return l.GetCurrencyCode() == r.GetCurrencyCode() && l.GetCurrencyCode() != ""
-}
+/**
+ * Verifies the credit card number and (pretend) charges the card.
+ *
+ * @param {*} request
+ * @return transaction_id - a random uuid.
+ */
+module.exports = function charge (request) {
+  const { amount, credit_card: creditCard } = request;
+  const cardNumber = creditCard.credit_card_number;
+  const cardInfo = cardValidator(cardNumber);
+  const {
+    card_type: cardType,
+    valid
+  } = cardInfo.getCardDetails();
 
-// AreEquals returns true if values l and r are the equal, including the
-// currency. This does not check validity of the provided values.
-func AreEquals(l, r pb.Money) bool {
-	return l.GetCurrencyCode() == r.GetCurrencyCode() &&
-		l.GetUnits() == r.GetUnits() && l.GetNanos() == r.GetNanos()
-}
+  if (!valid) { throw new InvalidCreditCard(); }
 
-// Negate returns the same amount with the sign negated.
-func Negate(m pb.Money) pb.Money {
-	return pb.Money{
-		Units:        -m.GetUnits(),
-		Nanos:        -m.GetNanos(),
-		CurrencyCode: m.GetCurrencyCode()}
-}
+  // Only VISA and mastercard is accepted, other card types (AMEX, dinersclub) will
+  // throw UnacceptedCreditCard error.
+  if (!(cardType === 'visa' || cardType === 'mastercard')) { throw new UnacceptedCreditCard(cardType); }
 
-// Must panics if the given error is not nil. This can be used with other
-// functions like: "m := Must(Sum(a,b))".
-func Must(v pb.Money, err error) pb.Money {
-	if err != nil {
-		panic(err)
-	}
-	return v
-}
+  // Also validate expiration is > today.
+  const currentMonth = new Date().getMonth() + 1;
+  const currentYear = new Date().getFullYear();
+  const { credit_card_expiration_year: year, credit_card_expiration_month: month } = creditCard;
+  if ((currentYear * 12 + currentMonth) > (year * 12 + month)) { throw new ExpiredCreditCard(cardNumber.replace('-', ''), month, year); }
 
-// Sum adds two values. Returns an error if one of the values are invalid or
-// currency codes are not matching (unless currency code is unspecified for
-// both).
-func Sum(l, r pb.Money) (pb.Money, error) {
-	if !IsValid(l) || !IsValid(r) {
-		return pb.Money{}, ErrInvalidValue
-	} else if l.GetCurrencyCode() != r.GetCurrencyCode() {
-		return pb.Money{}, ErrMismatchingCurrency
-	}
-	units := l.GetUnits() + r.GetUnits()
-	nanos := l.GetNanos() + r.GetNanos()
+  logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
+    Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
 
-	if (units == 0 && nanos == 0) || (units > 0 && nanos >= 0) || (units < 0 && nanos <= 0) {
-		// same sign <units, nanos>
-		units += int64(nanos / nanosMod)
-		nanos = nanos % nanosMod
-	} else {
-		// different sign. nanos guaranteed to not to go over the limit
-		if units > 0 {
-			units--
-			nanos += nanosMod
-		} else {
-			units++
-			nanos -= nanosMod
-		}
-	}
-
-	return pb.Money{
-		Units:        units,
-		Nanos:        nanos,
-		CurrencyCode: l.GetCurrencyCode()}, nil
-}
-
-// MultiplySlow is a slow multiplication operation done through adding the value
-// to itself n-1 times.
-func MultiplySlow(m pb.Money, n uint32) pb.Money {
-	out := m
-	for n > 1 {
-		out = Must(Sum(out, m))
-		n--
-	}
-	return out
-}
+  return { transaction_id: uuidv4() };
+};
