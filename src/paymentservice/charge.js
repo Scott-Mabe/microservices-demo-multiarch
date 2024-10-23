@@ -84,14 +84,6 @@ module.exports = function charge (request) {
 
   return { transaction_id: uuidv4() };
 };
-async function chargeCard(amount, cardType) {
-    // Payment processing logic here
-    console.log(`Charging ${amount} with card type ${cardType}`);
-
-    const result = await processPayment(amount, cardType);
-    return result;
-}
-//const tracer = require('dd-trace').init(); 
 
 async function chargeCard(amount, cardType) {
     // Start a span for the charge operation
@@ -99,25 +91,25 @@ async function chargeCard(amount, cardType) {
 
     // Add span tags for the amount and card type
     span.setTag('amount.currency_code', amount.currency_code);  // Tag for currency code
-    span.setTag('amount.units', amount.units);                  // Tag for amount
-    span.setTag('payment.card_type', cardType);                 // Tag for card type
+    span.setTag('amount.units', amount.units);  // Tag for units
+    span.setTag('amount.nanos', amount.nanos);  // Tag for nanos
+    span.setTag('card.type', cardType);  // Tag for card type
 
     try {
-        // Payment processing logic
-        console.log(`Charging ${amount.units} ${amount.currency_code} with card type ${cardType}`);
+        // Payment processing logic here
+        console.log(`Charging ${amount.currency_code}${amount.units}.${amount.nanos} with card type ${cardType}`);
+
         const result = await processPayment(amount, cardType);
 
-        // Mark the span as successful
-        span.setTag('payment.status', 'success');
-        return result;
-    } catch (err) {
-        // Handle errors and tag them
-        console.error('Payment error:', err.message);
-        span.setTag('payment.status', 'failure');
-        span.setTag('error.message', err.message);
-        throw err;
+        logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
+            Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
+
+        return { transaction_id: uuidv4() };
+    } catch (error) {
+        span.setTag('error', true);
+        span.log({ event: 'error', message: error.message });
+        throw error;
     } finally {
-        // Finish the span
         span.finish();
     }
 }
