@@ -26,6 +26,34 @@ const logger = pino({
   }
 });
 
+async function chargeCard(amount, cardType) {
+  // Start a span for the charge operation
+  const span = tracer.startSpan('payment.charge');
+
+  // Add span tags for the amount and card type
+  span.setTag('amount.currency_code', amount.currency_code);  // Tag for currency code
+  span.setTag('amount.units', amount.units);  // Tag for units
+  span.setTag('amount.nanos', amount.nanos);  // Tag for nanos
+  span.setTag('card.type', cardType);  // Tag for card type
+
+  try {
+      // Payment processing logic here
+      console.log(`Charging ${amount.currency_code}${amount.units}.${amount.nanos} with card type ${cardType}`);
+
+      const result = await processPayment(amount, cardType);
+
+      logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
+          Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
+
+      return { transaction_id: uuidv4() };
+  } catch (error) {
+      span.setTag('error', true);
+      span.log({ event: 'error', message: error.message });
+      throw error;
+  } finally {
+      span.finish();
+  }
+}
 
 class CreditCardError extends Error {
   constructor (message) {
@@ -84,32 +112,3 @@ module.exports = function charge (request) {
 
   return { transaction_id: uuidv4() };
 };
-
-async function chargeCard(amount, cardType) {
-  // Start a span for the charge operation
-  const span = tracer.startSpan('payment.charge');
-
-  // Add span tags for the amount and card type
-  span.setTag('amount.currency_code', amount.currency_code);  // Tag for currency code
-  span.setTag('amount.units', amount.units);  // Tag for units
-  span.setTag('amount.nanos', amount.nanos);  // Tag for nanos
-  span.setTag('card.type', cardType);  // Tag for card type
-
-  try {
-      // Payment processing logic here
-      console.log(`Charging ${amount.currency_code}${amount.units}.${amount.nanos} with card type ${cardType}`);
-
-      const result = await processPayment(amount, cardType);
-
-      logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
-          Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
-
-      return { transaction_id: uuidv4() };
-  } catch (error) {
-      span.setTag('error', true);
-      span.log({ event: 'error', message: error.message });
-      throw error;
-  } finally {
-      span.finish();
-  }
-}
