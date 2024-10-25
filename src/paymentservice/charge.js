@@ -26,28 +26,6 @@ const logger = pino({
   }
 });
 
-const tracer = require('dd-trace').init();
-
-const currentYear = new Date().getFullYear();
-const { credit_card_expiration_year: year, credit_card_expiration_month: month } = creditCard;
-
-if ((currentYear * 12 + currentMonth) > (year * 12 + month)) {
-  throw new ExpiredCreditCard(cardNumber.replace('-', ''), month, year);
-}
-
-const span = tracer.startSpan('transaction.process', {
-  tags: {
-    'card.type': cardType,
-    'transaction.amount': `${amount.currency_code}${amount.units}.${amount.nanos}`
-  }
-});
-
-logger.info(`Transaction processed: ${cardType} ending ${cardNumber.substr(-4)} \
-  Amount: ${amount.currency_code}${amount.units}.${amount.nanos}`);
-
-span.finish();
-
-return { transaction_id: uuidv4() };
 
 class CreditCardError extends Error {
   constructor (message) {
